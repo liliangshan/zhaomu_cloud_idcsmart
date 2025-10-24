@@ -79,6 +79,19 @@
       </div>
     </div>
 
+    <!-- 功能参数 -->
+    <div v-if="selectedZone && selectedZone.features && selectedZone.features.length > 0" class="hlwidc-features-section">
+      <h3 class="hlwidc-features-title">功能参数</h3>
+      <div class="hlwidc-features-grid">
+        <div v-for="feature in selectedZone.features" :key="feature.target_id" class="hlwidc-feature-item">
+          <div class="hlwidc-feature-name">{{ feature.name }}</div>
+          <div class="hlwidc-feature-status" :class="getFeatureStatusClass(feature.explain)">
+            {{ feature.explain }}
+          </div>
+        </div>
+      </div>
+    </div>
+
     <!-- 产品列表 -->
     <template v-if="selectedContinent">
       <div v-if="error" class="hlwidc-error">
@@ -135,21 +148,23 @@
         </el-table-column>
         <el-table-column label="月付" min-width="100">
           <template #default="scope">
-            <span v-if="scope.row.minPaymentCycle && scope.row.minPaymentCycle > 1" class="hlwidc-price-month">-</span>
-            <span v-else class="hlwidc-price-disabled">{{ getCurrencySymbol(currencyUnit) }}{{
+            <span v-if="scope.row.minPaymentCycle && scope.row.minPaymentCycle > 1" class="hlwidc-price-disabled">-</span>
+            <span v-else class="hlwidc-price-month">{{ getCurrencySymbol(currencyUnit) }}{{
               formatPrice(scope.row.price) }}</span>
           </template>
         </el-table-column>
         <el-table-column label="季付" min-width="100">
           <template #default="scope">
-            <span v-if="scope.row.minPaymentCycle && scope.row.minPaymentCycle > 2" class="hlwidc-price-quarter">-</span>
+            <span v-if="scope.row.minPaymentCycle && scope.row.minPaymentCycle > 2" class="hlwidc-price-disabled">-</span>
+            <span v-else-if="scope.row.minPaymentCycle && scope.row.minPaymentCycle > 1" class="hlwidc-price-quarter">{{ getCurrencySymbol(currencyUnit) }}{{
+              formatPrice(scope.row.priceQuarter) }}</span>
             <span v-else class="hlwidc-price-disabled">{{ getCurrencySymbol(currencyUnit) }}{{
               formatPrice(scope.row.priceQuarter) }}</span>
           </template>
         </el-table-column>
         <el-table-column label="年付" min-width="100">
           <template #default="scope">
-            <span class="hlwidc-price-year">{{ getCurrencySymbol(currencyUnit) }}{{ formatPrice(scope.row.priceYear)
+            <span class="hlwidc-price-disabled">{{ getCurrencySymbol(currencyUnit) }}{{ formatPrice(scope.row.priceYear)
               }}</span>
           </template>
         </el-table-column>
@@ -161,7 +176,7 @@
         </el-table-column>
         <el-table-column label="操作" min-width="80" fixed="right">
           <template #default="scope">
-            <el-button type="primary" size="small" :disabled="scope.row.outOfStock" @click="openOrderModal(scope.row)">
+            <el-button type="primary" size="small" :disabled="!!scope.row.outOfStock" @click="openOrderModal(scope.row)">
               订购
             </el-button>
           </template>
@@ -193,8 +208,7 @@ import { ref, onMounted, watch, onUnmounted } from 'vue'
 import { zhaomuApiService } from '@/services/api'
 import { getCurrencySymbol } from '@/config/currencies'
 import OrderModal from '@/components/OrderModal.vue'
-import { ElTable, ElTableColumn, ElButton, ElTag, ElLoading, ElSelect, ElOption } from 'element-plus'
-import 'element-plus/dist/index.css'
+import { ElTable, ElTableColumn, ElButton, ElTag, ElSelect, ElOption } from 'element-plus'
 
 // 响应式数据
 const loading = ref(false)
@@ -384,15 +398,28 @@ const loadProductsByZone = async (zone: any) => {
     error.value = null
 
     console.log('获取产品列表，可用区:', zone)
-    const response = await zhaomuApiService.getProductsByRegion(zone.id.toString())
-    console.log('获取产品响应:', response)
+    
+    // 并行获取产品列表和功能参数
+    const [productsResponse, featuresResponse] = await Promise.all([
+      zhaomuApiService.getProductsByRegion(zone.id.toString()),
+      zhaomuApiService.getRegionFeatureComparison(zone.id.toString())
+    ])
+    
+    console.log('获取产品响应:', productsResponse)
+    console.log('获取功能参数响应:', featuresResponse)
 
-    if (response && response.code === 1 && response.data) {
-      products.value = response.data
-    } else if (response && Array.isArray(response)) {
-      products.value = response
+    if (productsResponse && productsResponse.code === 1 && productsResponse.data) {
+      products.value = productsResponse.data
+    } else if (productsResponse && Array.isArray(productsResponse)) {
+      products.value = productsResponse
     } else {
       throw new Error('未获取到有效的产品数据')
+    }
+
+    // 将功能参数数据存储到可用区对象中
+    if (featuresResponse && featuresResponse.code === 1 && featuresResponse.data) {
+      zone.features = featuresResponse.data
+      console.log('可用区功能参数:', zone.features)
     }
 
   } catch (err) {
@@ -508,6 +535,23 @@ watch(selectedZone, (newZone) => {
     loadProductsByZone(newZone)
   }
 }, { immediate: true })
+
+// 获取功能状态样式类
+const getFeatureStatusClass = (explain: string) => {
+  if (explain === '支持') {
+    return 'supported'
+  } else if (explain === '不支持') {
+    return 'not-supported'
+  } else if (explain.includes('提交工单')) {
+    return 'ticket-required'
+  } else if (explain.includes('小时')) {
+    return 'time-limited'
+  } else if (explain.includes('IP')) {
+    return 'ip-info'
+  } else {
+    return 'other'
+  }
+}
 </script>
 
 <style scoped>
@@ -872,12 +916,12 @@ watch(selectedZone, (newZone) => {
 }
 
 .hlwidc-price-month {
-  color: #059669;
+  color: #dc2626;
   font-size: 1rem;
 }
 
 .hlwidc-price-quarter {
-  color: #7c3aed;
+  color: #dc2626;
   font-size: 0.875rem;
 }
 
@@ -989,6 +1033,94 @@ watch(selectedZone, (newZone) => {
   width: 100%;
 }
 
+/* 功能参数样式 */
+.hlwidc-features-section {
+  background: white;
+  border-radius: 12px;
+  padding: 24px;
+  margin-bottom: 30px;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+  border: 1px solid #e5e7eb;
+}
+
+.hlwidc-features-title {
+  margin: 0 0 20px 0;
+  font-size: 1.25rem;
+  color: #374151;
+  font-weight: 600;
+}
+
+.hlwidc-features-grid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 12px;
+}
+
+.hlwidc-feature-item {
+  display: flex;
+  flex-direction: row;
+  justify-content: space-between;
+  align-items: center;
+  padding: 8px 16px;
+  background: #f8fafc;
+  border-radius: 6px;
+  border: 1px solid #e5e7eb;
+  transition: all 0.2s ease;
+  min-height: 40px;
+}
+
+.hlwidc-feature-item:hover {
+  background: #f1f5f9;
+  border-color: #cbd5e1;
+}
+
+.hlwidc-feature-name {
+  font-size: 0.875rem;
+  font-weight: 600;
+  color: #374151;
+  flex: 1;
+}
+
+.hlwidc-feature-status {
+  font-size: 0.75rem;
+  padding: 4px 8px;
+  border-radius: 4px;
+  font-weight: 500;
+  text-align: center;
+  min-width: 60px;
+  white-space: nowrap;
+}
+
+.hlwidc-feature-status.supported {
+  background: #dcfce7;
+  color: #166534;
+}
+
+.hlwidc-feature-status.not-supported {
+  background: #fef2f2;
+  color: #dc2626;
+}
+
+.hlwidc-feature-status.ticket-required {
+  background: #fef3c7;
+  color: #d97706;
+}
+
+.hlwidc-feature-status.time-limited {
+  background: #dbeafe;
+  color: #1d4ed8;
+}
+
+.hlwidc-feature-status.ip-info {
+  background: #e0e7ff;
+  color: #5b21b6;
+}
+
+.hlwidc-feature-status.other {
+  background: #f3f4f6;
+  color: #6b7280;
+}
+
 /* 响应式设计 */
 @media (max-width: 768px) {
 
@@ -1077,6 +1209,26 @@ watch(selectedZone, (newZone) => {
 
   .hlwidc-tags-cell {
     min-width: 80px;
+  }
+
+  .hlwidc-features-grid {
+    grid-template-columns: 1fr;
+    gap: 8px;
+  }
+
+  .hlwidc-feature-item {
+    padding: 6px 12px;
+    min-height: 36px;
+  }
+
+  .hlwidc-feature-name {
+    font-size: 0.8rem;
+  }
+
+  .hlwidc-feature-status {
+    font-size: 0.7rem;
+    padding: 2px 6px;
+    min-width: 50px;
   }
 }
 </style>

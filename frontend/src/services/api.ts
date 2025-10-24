@@ -40,6 +40,8 @@ const zhaomuApi = {
     const queryString = new URLSearchParams(params).toString()
     return getApiUrl(`_controller=admin_api&_action=getProductImages&${queryString}`)
   },
+  getRegionFeatureComparison: (regionId: string) => getApiUrl(`_controller=admin_api&_action=getRegionFeatureComparison&regionId=${regionId}`),
+  setComparisonSettings: () => getApiUrl('_controller=admin_api&_action=setComparisonSettings'),
   submitOrder: () => getApiUrl('_controller=admin_api&_action=submitOrder'),
   setNavigation: () => getApiUrl('_controller=admin_api&_action=setNavigation'),
   setRealNameAuth: () => getApiUrl('_controller=admin_api&_action=setRealNameAuth'),
@@ -376,6 +378,24 @@ export class ZhaomuApiService {
   async getProductImages(params: any): Promise<ApiResponse> {
     const url = zhaomuApi.getProductImages(params)
     return this.request(url)
+  }
+
+  /**
+   * 获取某个可用区的功能参数比较
+   * @param regionId 可用区ID
+   * @returns Promise<ApiResponse>
+   */
+  async getRegionFeatureComparison(regionId: string): Promise<ApiResponse> {
+    const url = zhaomuApi.getRegionFeatureComparison(regionId)
+    return this.request(url)
+  }
+
+  async setComparisonSettings(comparisonData: any[]): Promise<ApiResponse> {
+    const url = zhaomuApi.setComparisonSettings()
+    return this.request(url, {
+      method: 'POST',
+      body: JSON.stringify({ comparison: comparisonData })
+    })
   }
 
   /**

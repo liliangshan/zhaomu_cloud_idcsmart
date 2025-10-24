@@ -47,6 +47,33 @@
         </div>
       </div>
 
+      <!-- 功能参数比较设置 -->
+      <div class="hlwidc-comparison-section">
+        <div class="hlwidc-comparison-header">
+          <h3>功能参数(先去购买中多点几个区域载入参数后在此隐藏不想显示的)</h3>
+          <div class="hlwidc-comparison-controls">
+            <button @click="selectAllFeatures" :disabled="loading" class="hlwidc-control-btn">
+              全选
+            </button>
+            <button @click="selectNoneFeatures" :disabled="loading" class="hlwidc-control-btn">
+              全不选
+            </button>
+            <button @click="saveComparisonSettings" :disabled="loading" class="hlwidc-save-btn">
+              保存设置
+            </button>
+          </div>
+        </div>
+        
+        <div class="hlwidc-features-grid">
+          <div v-for="feature in comparisonFeatures" :key="feature.name" class="hlwidc-feature-item">
+            <label class="hlwidc-feature-label">
+              <input type="checkbox" v-model="feature.use" :disabled="loading" />
+              <span class="hlwidc-feature-name">{{ feature.name }}</span>
+            </label>
+          </div>
+        </div>
+      </div>
+
       <!-- 统一提交按钮 -->
       <div class="hlwidc-submit-section">
         <button @click="saveAllConfig" :disabled="loading" class="hlwidc-submit-btn"
@@ -188,6 +215,9 @@ const selectedNavigationName = ref<string>('')
 
 // 实名认证相关
 const realNameAuthRequired = ref<boolean>(true)
+
+// 功能参数比较相关
+const comparisonFeatures = ref<any[]>([])
 
 // 统一保存相关
 const allSaveStatus = ref<'normal' | 'success'>('normal')
@@ -398,6 +428,12 @@ const loadAllConfig = async () => {
       if (response.data.realNameAuth) {
         realNameAuthRequired.value = response.data.realNameAuth.required
         console.log('已加载实名认证设置:', realNameAuthRequired.value)
+      }
+
+      // 加载功能参数比较设置
+      if (response.data.comparison && response.data.comparison.data) {
+        comparisonFeatures.value = response.data.comparison.data
+        console.log('已加载功能参数比较设置:', comparisonFeatures.value.length, '个功能')
       }
     } else {
       // 如果获取失败，使用默认值
@@ -610,6 +646,40 @@ const saveRealNameAuth = async () => {
   }
 }
 
+// 全选功能参数
+const selectAllFeatures = () => {
+  comparisonFeatures.value.forEach(feature => {
+    feature.use = true
+  })
+}
+
+// 全不选功能参数
+const selectNoneFeatures = () => {
+  comparisonFeatures.value.forEach(feature => {
+    feature.use = false
+  })
+}
+
+// 保存功能参数比较设置
+const saveComparisonSettings = async () => {
+  try {
+    console.log('开始保存功能参数比较设置:', comparisonFeatures.value)
+    
+    const response = await zhaomuApiService.setComparisonSettings(comparisonFeatures.value)
+    console.log('保存功能参数比较设置响应:', response)
+    
+    if (response && response.code === 1) {
+      successMessage.value = `功能参数比较设置已保存，共 ${comparisonFeatures.value.length} 个功能`
+      error.value = null
+    } else {
+      error.value = response.msg || '保存功能参数比较设置失败'
+    }
+  } catch (err) {
+    console.error('保存功能参数比较设置错误:', err)
+    error.value = '网络错误，请检查连接后重试'
+  }
+}
+
 // 统一保存所有配置
 const saveAllConfig = async () => {
   try {
@@ -634,6 +704,11 @@ const saveAllConfig = async () => {
     // 保存汇率设置
     if (exchangeRate.value > 0) {
       await saveExchangeSettings()
+    }
+    
+    // 保存功能参数比较设置
+    if (comparisonFeatures.value.length > 0) {
+      await saveComparisonSettings()
     }
     
     // 显示成功状态
@@ -777,10 +852,83 @@ const saveAllConfig = async () => {
   background: linear-gradient(135deg, #28a745 0%, #20c997 100%) !important;
 }
 
+/* 功能参数比较设置样式 */
+.hlwidc-comparison-section {
+  margin: 20px 0;
+  padding: 20px;
+  background: #f8f9fa;
+  border-radius: 8px;
+  border: 1px solid #e0e0e0;
+}
+
+.hlwidc-comparison-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 20px;
+  flex-wrap: wrap;
+  gap: 15px;
+}
+
+.hlwidc-comparison-header h3 {
+  margin: 0;
+  color: #333;
+  font-size: 18px;
+  font-weight: 600;
+}
+
+.hlwidc-comparison-controls {
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.hlwidc-features-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(250px, 1fr));
+  gap: 12px;
+}
+
+.hlwidc-feature-item {
+  background: white;
+  border: 1px solid #ddd;
+  border-radius: 6px;
+  padding: 12px 16px;
+  transition: all 0.2s ease;
+}
+
+.hlwidc-feature-item:hover {
+  border-color: #42b883;
+  box-shadow: 0 2px 8px rgba(66, 184, 131, 0.1);
+}
+
+.hlwidc-feature-label {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  cursor: pointer;
+  user-select: none;
+}
+
+.hlwidc-feature-label input[type="checkbox"] {
+  transform: scale(1.1);
+  accent-color: #42b883;
+}
+
+.hlwidc-feature-name {
+  font-size: 14px;
+  color: #333;
+  font-weight: 500;
+}
+
 /* 响应式设计 */
 @media (max-width: 1024px) {
   .hlwidc-config-sections {
     grid-template-columns: repeat(2, 1fr);
+  }
+  
+  .hlwidc-features-grid {
+    grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
   }
 }
 

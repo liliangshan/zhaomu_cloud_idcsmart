@@ -40,6 +40,7 @@ const zhaomuApi = {
     const queryString = new URLSearchParams(params).toString()
     return getApiUrl(`_controller=api&_action=getProductImages&${queryString}`)
   },
+  getRegionFeatureComparison: (regionId: string) => getApiUrl(`_controller=api&_action=getRegionFeatureComparison&regionId=${regionId}`),
   submitOrder: () => getApiUrl('_controller=api&_action=submitOrder'),
   setNavigation: () => getApiUrl('_controller=api&_action=setNavigation'),
   setRealNameAuth: () => getApiUrl('_controller=api&_action=setRealNameAuth'),
@@ -368,6 +369,16 @@ export class ZhaomuApiService {
    */
   async getProductImages(params: any): Promise<ApiResponse> {
     const url = zhaomuApi.getProductImages(params)
+    return this.request(url)
+  }
+
+  /**
+   * 获取某个可用区的功能参数比较
+   * @param regionId 可用区ID
+   * @returns Promise<ApiResponse>
+   */
+  async getRegionFeatureComparison(regionId: string): Promise<ApiResponse> {
+    const url = zhaomuApi.getRegionFeatureComparison(regionId)
     return this.request(url)
   }
 

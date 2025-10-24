@@ -13,7 +13,7 @@ use addons\zhaomu_cloud\model\Host;
 use addons\zhaomu_cloud\model\HlwidcCache;
 use addons\zhaomu_cloud\ZhaoMuTemplete;
 use addons\zhaomu_cloud\services\ZhaoMuCloudService;
-
+use addons\zhaomu_cloud\model\CustomFieldValue;
 /**
  * 获取模块元数据信息
  * @return array 模块基本信息
@@ -85,11 +85,29 @@ function zhaomucloudapi_TestLink(array $params)
  */
 function zhaomucloudapi_CreateAccount($params){
     try {
+        $businessId=null;
+        $businessList = CustomFieldValue::with('customField')->where('relid',$params['hostid'])->select();
+        foreach ($businessList as $item) {
+            if ($item->customField->fieldname == '业务id') {
+                $businessId = $item->value;
+                break;
+            }
+        }
+        if($businessId){
+            $params['customfields']=[
+                '业务id'=>$businessId
+            ];
+            return zhaomucloudapi_Sync($params);
+        }
+
+
         // 从params中提取所需参数
         $productId = $params['config_option1'] ?? $params['configoptions']['model'] ?? null;
         if (!$productId) {
             return '无法获取产品ID';
         }
+
+
 
         // 获取系统盘大小
         $systemDisk = $params['customfields']['系统盘'] ?? '25';
@@ -137,9 +155,9 @@ function zhaomucloudapi_CreateAccount($params){
             'imageId' => $imageId,
             'paymentCycle' => $paymentCycle
         ];
-
+        $encryptedApiKey = HlwidcCache::value('zhaomu_key', null);
         // 使用ZhaoMuCloudService进行订购
-        $zhaomuService = new ZhaoMuCloudService();
+        $zhaomuService = new ZhaoMuCloudService($encryptedApiKey);
         $result = $zhaomuService->orderCloudServer($orderData);
 
         // 检查订购结果
@@ -224,9 +242,9 @@ function zhaomucloudapi_Renew($params){
                 $paymentCycle = 1; // 默认月付
                 break;
         }
-
+        $encryptedApiKey = HlwidcCache::value('zhaomu_key', null);
         // 使用ZhaoMuCloudService进行续费操作
-        $zhaomuService = new ZhaoMuCloudService();
+        $zhaomuService = new ZhaoMuCloudService($encryptedApiKey);
         $result = $zhaomuService->renewCloudServer($businessId, $paymentCycle);
         
         return 'success';
@@ -248,15 +266,15 @@ function zhaomucloudapi_Sync($params){
         if (!$businessId) {
             return '无法获取业务ID';
         }
-
+        $encryptedApiKey = HlwidcCache::value('zhaomu_key', null);
         // 通过Host模型获取host对象
-        $host = \addons\zhaomu_cloud\model\Host::find($params['hostid']);
+        $host = Host::find($params['hostid']);
         if (!$host) {
             return '找不到对应的主机记录';
         }
 
         // 使用ZhaoMuCloudService进行同步操作
-        $zhaomuService = new ZhaoMuCloudService();
+        $zhaomuService = new ZhaoMuCloudService($encryptedApiKey);
         $result = $zhaomuService->getAndUpdateCloudServerInfo($businessId, $host);
         
         return 'success';
@@ -279,9 +297,9 @@ function zhaomucloudapi_HardOff($params){
         if (!$businessId) {
             return '无法获取业务ID';
         }
-
+        $encryptedApiKey = HlwidcCache::value('zhaomu_key', null);
         // 使用ZhaoMuCloudService进行关机操作
-        $zhaomuService = new ZhaoMuCloudService();
+        $zhaomuService = new ZhaoMuCloudService($encryptedApiKey);
         $result = $zhaomuService->shutdownCloudServer($businessId);
         
         return ['status'=>'success', 'msg'=>'关机指令已下达:)'];
@@ -302,9 +320,9 @@ function zhaomucloudapi_Off($params){
         if (!$businessId) {
             return '无法获取业务ID';
         }
-
+        $encryptedApiKey = HlwidcCache::value('zhaomu_key', null);
         // 使用ZhaoMuCloudService进行关机操作
-        $zhaomuService = new ZhaoMuCloudService();
+        $zhaomuService = new ZhaoMuCloudService($encryptedApiKey);
         $result = $zhaomuService->shutdownCloudServer($businessId);
         
         return ['status'=>'success', 'msg'=>'关机指令已下达:)'];
@@ -326,9 +344,9 @@ function zhaomucloudapi_On($params){
         if (!$businessId) {
             return '无法获取业务ID';
         }
-
+        $encryptedApiKey = HlwidcCache::value('zhaomu_key', null);
         // 使用ZhaoMuCloudService进行开机操作
-        $zhaomuService = new ZhaoMuCloudService();
+        $zhaomuService = new ZhaoMuCloudService($encryptedApiKey);
         $result = $zhaomuService->rebootCloudServer($businessId);
         
         return ['status'=>'success', 'msg'=>'开机指令已下达:)'];
@@ -353,9 +371,9 @@ function zhaomucloudapi_HardReboot($params){
         if (!$businessId) {
             return '无法获取业务ID';
         }
-
+        $encryptedApiKey = HlwidcCache::value('zhaomu_key', null);  
         // 使用ZhaoMuCloudService进行重启操作
-        $zhaomuService = new ZhaoMuCloudService();
+        $zhaomuService = new ZhaoMuCloudService($encryptedApiKey);
         $result = $zhaomuService->rebootCloudServer($businessId);
         
         return ['status'=>'success', 'msg'=>'重启指令已下达:)'];
@@ -377,9 +395,9 @@ function zhaomucloudapi_Reboot($params){
         if (!$businessId) {
             return '无法获取业务ID';
         }
-
+        $encryptedApiKey = HlwidcCache::value('zhaomu_key', null);
         // 使用ZhaoMuCloudService进行重启操作
-        $zhaomuService = new ZhaoMuCloudService();
+        $zhaomuService = new ZhaoMuCloudService($encryptedApiKey);
         $result = $zhaomuService->rebootCloudServer($businessId);
         
         return ['status'=>'success', 'msg'=>'重启指令已下达:)'];
@@ -404,9 +422,9 @@ function zhaomucloudapi_SuspendAccount($params){
         if (!$businessId) {
             return '无法获取业务ID';
         }
-
+        $encryptedApiKey = HlwidcCache::value('zhaomu_key', null);
         // 使用ZhaoMuCloudService进行关机操作（暂停就是关机）
-        $zhaomuService = new ZhaoMuCloudService();
+        $zhaomuService = new ZhaoMuCloudService($encryptedApiKey);
         $result = $zhaomuService->shutdownCloudServer($businessId);
         
         return 'success';
@@ -428,9 +446,9 @@ function zhaomucloudapi_UnsuspendAccount($params){
         if (!$businessId) {
             return '无法获取业务ID';
         }
-
+        $encryptedApiKey = HlwidcCache::value('zhaomu_key', null);
         // 使用ZhaoMuCloudService进行开机操作（解除暂停就是开机）
-        $zhaomuService = new ZhaoMuCloudService();
+        $zhaomuService = new ZhaoMuCloudService($encryptedApiKey);
         $result = $zhaomuService->rebootCloudServer($businessId);
         
         return 'success';

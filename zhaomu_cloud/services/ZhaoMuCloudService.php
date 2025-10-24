@@ -901,6 +901,27 @@ class ZhaoMuCloudService
     }
 
     /**
+     * 获取某个可用区的功能参数比较
+     * @param string $regionId 可用区编号
+     * @return array 功能参数比较列表
+     * @throws \Exception
+     */
+    public function getRegionFeatureComparison($regionId)
+    {
+        $result = $this->sendRequest('GET', '/compare/region/' . $regionId);
+
+        if (!$result['success']) {
+            // 检查是否是认证错误
+            if (isset($result['status_code']) && $result['status_code'] == 401) {
+                throw new \Exception('API Key 无效或已过期，请检查您的 API Key 是否正确');
+            }
+            throw new \Exception('获取可用区功能参数比较失败: ' . $result['error']);
+        }
+
+        return $result['data'];
+    }
+
+    /**
      * 获取云服务器控制台
      * @param string $serverId 服务器ID
      * @return array
@@ -1512,6 +1533,7 @@ class ZhaoMuCloudService
                 // 更新远程账号
                 $host->username = $cloudServerInfo['root'];
             }
+            $host->domainstatus = 'Active';
             
             // 保存更新后的host数据
             $host->save();

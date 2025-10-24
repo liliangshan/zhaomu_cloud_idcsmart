@@ -6,7 +6,7 @@
     <div v-if="keyStatus === 1" class="hlwidc-loading-section">
       <div class="hlwidc-loading-container">
         <div class="hlwidc-loading-spinner"></div>
-        <p class="hlwidc-loading-text">正在检查 API Key 状态...</p>
+        
       </div>
     </div>
 

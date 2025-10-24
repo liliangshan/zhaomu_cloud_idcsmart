@@ -89,6 +89,146 @@ class AdminApiController extends PluginAdminBaseController
     }
     
     /**
+     * 获取某个可用区的功能参数
+     * @return \think\Response
+     */
+    public function getRegionFeatureComparison()
+    {
+        try {
+            // 检查缓存中是否有加密的 API Key
+            $encryptedApiKey = \addons\zhaomu_cloud\model\HlwidcCache::value('zhaomu_key', null);
+            
+            if (empty($encryptedApiKey)) {
+                throw new \Exception('API Key 未配置，请先配置朝暮云 API Key');
+            }
+            
+            $zhaomuCloudService = new \addons\zhaomu_cloud\services\ZhaoMuCloudService($encryptedApiKey);
+            
+            // 获取请求参数中的可用区ID
+            $regionId = input('regionId', '');
+            
+            if (empty($regionId)) {
+                throw new \Exception('请传入有效的可用区ID');
+            }
+            
+            // 调用服务获取功能参数
+            $features = $zhaomuCloudService->getRegionFeatureComparison($regionId);
+            
+            // 获取缓存中的比较配置
+            $comparison = \addons\zhaomu_cloud\model\HlwidcCache::value('zhaomu_comparison', []);
+            
+           
+            
+            // 提取features的name数组
+            $featureNames = [];
+            if (is_array($features)) {
+                foreach ($features as $feature) {
+                    if (isset($feature['name'])) {
+                        $featureNames[] = $feature['name'];
+                    }
+                }
+            }
+            
+            // 遍历featureNames，如果不在comparison中，则添加
+            $comparisonUpdated = false;
+            foreach ($featureNames as $name) {
+                $found = false;
+                foreach ($comparison as $item) {
+                    if (isset($item['name']) && $item['name'] === $name) {
+                        $found = true;
+                        break;
+                    }
+                }
+                if (!$found) {
+                    $comparison[] = [
+                        'name' => $name,
+                        'use' => true
+                    ];
+                    $comparisonUpdated = true;
+                }
+            }
+            
+            // 如果comparison有更新，保存到缓存
+            if ($comparisonUpdated) {
+                \addons\zhaomu_cloud\model\HlwidcCache::setValue('zhaomu_comparison', $comparison, 0);
+            }
+            
+            // 过滤出use为true的features
+            $filteredFeatures = [];
+            if (is_array($features)) {
+                foreach ($features as $feature) {
+                    if (isset($feature['name'])) {
+                        // 查找comparison中对应的配置
+                        $useFeature = true; // 默认使用
+                        foreach ($comparison as $item) {
+                            if (isset($item['name']) && $item['name'] === $feature['name']) {
+                                $useFeature = isset($item['use']) ? $item['use'] : true;
+                                break;
+                            }
+                        }
+                        
+                        if ($useFeature) {
+                            $filteredFeatures[] = $feature;
+                        }
+                    }
+                }
+            }
+            
+            return json_encode([
+                'code' => 1,
+                'msg' => '获取功能参数成功',
+                'data' => $filteredFeatures
+            ]);
+            
+        } catch (\Exception $e) {
+            return json_encode(['code' => 0, 'msg' => $e->getMessage()], 200);
+        }
+    }
+
+    /**
+     * 设置功能参数配置
+     * @return \think\Response
+     */
+    public function setComparisonSettings()
+    {
+        try {
+            // 获取请求参数中的比较配置
+            $comparison = input('comparison', []);
+            
+            if (!is_array($comparison)) {
+                throw new \Exception('功能参数配置必须是数组格式');
+            }
+            
+            // 验证数据结构
+            foreach ($comparison as $item) {
+                if (!isset($item['name']) || !isset($item['use'])) {
+                    throw new \Exception('功能参数配置格式不正确，必须包含 name 和 use 字段');
+                }
+            }
+            
+            // 保存到缓存
+            $result = HlwidcCache::setValue('zhaomu_comparison', $comparison, 0);
+            
+            if ($result) {
+                return json([
+                    'code' => 1,
+                    'msg' => '功能参数设置保存成功',
+                    'data' => [
+                        'comparison' => $comparison,
+                        'count' => count($comparison),
+                        'saved' => true
+                    ]
+                ]);
+            } else {
+                throw new \Exception('功能参数设置保存失败');
+            }
+            
+        } catch (\Exception $e) {
+            return json(['code' => 0, 'msg' => $e->getMessage()], 200);
+        }
+    }
+
+    /**
      * 获取所有可用区列表（不受缓存影响）
      * @return \think\Response
      */
@@ -440,6 +580,9 @@ class AdminApiController extends PluginAdminBaseController
             // 获取服务器密钥
             $serverKey = HlwidcCache::value('zhaomu_server_key', null);
             
+            // 获取功能参数配置
+            $comparison = HlwidcCache::value('zhaomu_comparison', null);
+            
             if ($exchangeRate === null) {
                 $exchangeRate = 1;
                 HlwidcCache::setValue('zhaomu_exchange_rate', $exchangeRate, 0);
@@ -460,6 +603,12 @@ class AdminApiController extends PluginAdminBaseController
             if ($serverKey === null) {
                 $serverKey = $this->generateServerKey();
                 HlwidcCache::setValue('zhaomu_server_key', $serverKey, 0);
+            }
+            
+            // 设置功能参数默认值
+            if ($comparison === null) {
+                $comparison = [];
+                HlwidcCache::setValue('zhaomu_comparison', $comparison, 0);
             }
             
             $productGroup = (new ProductGroup())->addOrExit();
@@ -507,6 +656,10 @@ class AdminApiController extends PluginAdminBaseController
                     'realNameAuth' => [
                         'required' => (bool)$realNameAuth,
                         'is_default' => $realNameAuth === true
+                    ],
+                    'comparison' => [
+                        'data' => $comparison,
+                        'is_default' => $comparison === json_encode([])
                     ],
                     'productGroup' => $productGroup,
                     'ptype'=>$ptype,
