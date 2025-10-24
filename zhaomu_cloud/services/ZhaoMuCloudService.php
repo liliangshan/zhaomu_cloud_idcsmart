@@ -568,6 +568,20 @@ class ZhaoMuCloudService
      */
     public function orderCloudServer($orderData)
     {
+        // 转换支付周期格式
+        $paymentCycle = $orderData['paymentCycle'];
+        if (is_string($paymentCycle)) {
+            $cycleMap = [
+                'monthly' => 1,
+                'quarterly' => 2,
+                'annually' => 4,
+                '1' => 1,
+                '2' => 2,
+                '4' => 4
+            ];
+            $paymentCycle = $cycleMap[$paymentCycle] ?? 1;
+        }
+        
         // 构建请求参数
         $params = [
             'productId' => $orderData['productId'],
@@ -575,7 +589,7 @@ class ZhaoMuCloudService
             'diskData' => $orderData['diskData'],
             'bandwidth' => $orderData['bandwidth'],
             'imageId' => $orderData['imageId'],
-            'paymentCycle' => $orderData['paymentCycle']
+            'paymentCycle' => $paymentCycle
         ];
 
         $result = $this->sendRequest('POST', '/cloud/order', [
@@ -1774,7 +1788,7 @@ class ZhaoMuCloudService
                     'diskData' => $orderData['product']['diskData'],
                     'bandwidth' => $orderData['product']['bandwidth'],
                     'imageId' => $orderData['image']['id'],
-                    'paymentCycle' => $orderData['payment']['cycle']
+                    'paymentCycle' => intval($orderData['payment']['cycle'])
                 ]);
 
 
